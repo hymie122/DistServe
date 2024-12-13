@@ -123,6 +123,7 @@ class DecodingStageFCFSScheduler(DecodingStageScheduler):
         self.parallel_config = copy.deepcopy(parallel_config)
         self.block_manager = block_manager
         self.engine_migrate_block_callback = engine_migrate_block_callback
+        #print(f'self.engine_migrate_block_callback:{self.engine_migrate_block_callback}')
 
     def _get_block_needed(self, length: int):
         block_size = self.block_manager.cache_config.block_size
@@ -158,7 +159,7 @@ class DecodingStageFCFSScheduler(DecodingStageScheduler):
         # scan the current batch
         for queue in self.batch_queues:
             for _, request in enumerate(queue.requests):
-                if request.request_id == request_id:
+                if request.request_id == request_id and request.turn==0:
                     # This request may be under processed by the model currently,
                     # so it is not safe to delete it from current batch directly.
                     # Mark it as finished will release the resources it holds finally.

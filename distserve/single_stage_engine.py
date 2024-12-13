@@ -18,7 +18,8 @@ from distserve.config import (
 from distserve.request import (
     Request, 
     BatchedRequests,
-    MigratingRequest
+    MigratingRequest,
+    MigratingRequest2
 )
 from distserve.utils import Counter, cudaMemoryIpcHandle, Stage
 from distserve.lifetime import LifetimeEvent, LifetimeEventType
@@ -258,12 +259,14 @@ class ContextStageLLMEngine(SingleStageLLMEngine):
         return get_context_stage_scheduler(
             self.sched_config,
             self.parallel_config,
-            self.block_manager
+            self.block_manager,
+            self._migrate2_blocks,
         )
     
     def __init__(
         self,
         bridge_queue: asyncio.Queue[MigratingRequest],
+        bridge_queue2: asyncio.Queue[MigratingRequest2],
         model_config: ModelConfig,
         parallel_config: ParallelConfig,
         cache_config: CacheConfig,
@@ -289,12 +292,47 @@ class ContextStageLLMEngine(SingleStageLLMEngine):
         self.batches_ret_futures = []
         
         self.bridge_queue = bridge_queue
+
+        self.bridge_queue2 = bridge_queue2
     
     def add_request(self, request: Request):
         self.scheduler.add_request(request)
     
     def _free_request_resources(self, request_id: int):
         super()._free_request_resources(request_id)
+
+    async def _migrate2_blocks(self,migrating2_req: MigratingRequest2) -> None:
+        generated_token_bkup = migrating2_req.req.generated_tokens
+        generated_token_ids_bkup = migrating2_req.req.generated_token_ids
+        migrating2_req.req.generated_tokens = []
+        migrating2_req.req.generated_token_ids = []
+        #if migrating2_req.req.turn == 2:
+        self.block_manager.allocate_blocks(migrating2_req.req)
+        migrating2_req.req.generated_tokens = generated_token_bkup
+        migrating2_req.req.generated_token_ids = generated_token_ids_bkup
+
+        target_block_indexes = self.block_manager.get_block_table(migrating2_req.req.request_id)
+        print(f'migrating2_req.req.request_id:{migrating2_req.req.request_id}')
+        print(f'len(target_block_indexes):{len(target_block_indexes)}')
+        print(f'len(migrating2_req.block_indexes):{len(migrating2_req.block_indexes)}')
+        assert len(target_block_indexes) == len(migrating2_req.block_indexes)
+
+        self.engine_on_new_lifetime_event_callback(
+            migrating2_req.req.request_id,
+            LifetimeEvent(LifetimeEventType.Migration2Begin)
+        )
+        await asyncio.wait(self._remote_call_all_workers_async(
+            "migrate2_blocks",
+            migrating2_req.block_indexes,
+            migrating2_req.context_parallel_config,
+            target_block_indexes
+        ))
+        self.engine_on_new_lifetime_event_callback(
+            migrating2_req.req.request_id,
+            LifetimeEvent(LifetimeEventType.Migration2End)
+        )
+
+        self.clear_migrated_blocks_callback(migrating2_req)
         
     async def _step(self):
         """
@@ -401,6 +439,8 @@ class ContextStageLLMEngine(SingleStageLLMEngine):
                         self.bridge_queue.put_nowait(migrating_req) # This won't panic because the queue is unbounded
                     else:
                         self._free_request_resources(request.request_id)
+
+        await self.scheduler.post_process()
     
     def clear_migrated_blocks_callback(self, migrated_request: MigratingRequest):
         """
@@ -410,6 +450,17 @@ class ContextStageLLMEngine(SingleStageLLMEngine):
         self.scheduler.on_request_migrated(migrated_request)
         
     async def start_event_loop(self):
+        
+        async def event_loop():
+            while True:
+                #print(f'migrating2_req:{migrating2_req}')
+                #print(f'len(self.bridge_queue2):{self.bridge_queue2.qsize()}')
+                migrating2_req = await self.bridge_queue2.get()
+                #print(f'len(self.scheduler.migrate_queue):{len(self.scheduler.migrate_queue)}')
+                await self.scheduler.add_migrate_request(migrating2_req)
+                #print(f'len(self.scheduler.migrate_queue):{len(self.scheduler.migrate_queue)}')
+                self.bridge_queue2.task_done()
+        
         async def event_loop1():
             while True:
                 await self._step()
@@ -420,7 +471,7 @@ class ContextStageLLMEngine(SingleStageLLMEngine):
                 self.print_engine_status()
                 await asyncio.sleep(PRINT_STATUS_INTERVAL)
 
-        await asyncio.gather(event_loop1(), event_loop2())
+        await asyncio.gather(event_loop(), event_loop1(), event_loop2())
         
     def print_engine_status(self):
         self.scheduler.print_status()
@@ -438,6 +489,7 @@ class DecodingStageLLMEngine(SingleStageLLMEngine):
     def __init__(
         self,
         bridge_queue: asyncio.Queue[MigratingRequest],
+        bridge_queue2: asyncio.Queue[MigratingRequest2],
         model_config: ModelConfig,
         parallel_config: ParallelConfig,
         cache_config: CacheConfig,
@@ -459,6 +511,8 @@ class DecodingStageLLMEngine(SingleStageLLMEngine):
         )
         
         self.bridge_queue = bridge_queue
+        
+        self.bridge_queue2 = bridge_queue2
         self.clear_migrated_blocks_callback = clear_migrated_blocks_callback
         
         # All the batchedrequests that are pushed into the pipeline
@@ -514,6 +568,8 @@ class DecodingStageLLMEngine(SingleStageLLMEngine):
         migrating_req.req.generated_token_ids = generated_token_ids_bkup
         
         target_block_indexes = self.block_manager.get_block_table(migrating_req.req.request_id)
+        print(f'len(target_block_indexes):{len(target_block_indexes)}')
+        print(f'len(migrating_req.block_indexes):{len(migrating_req.block_indexes)}')
         assert len(target_block_indexes) == len(migrating_req.block_indexes)
         
         # Transfer the blocks
@@ -558,11 +614,18 @@ class DecodingStageLLMEngine(SingleStageLLMEngine):
         else:
             # Log down the lifetime event
             for request in batched_requests.requests:
-                self.engine_on_new_lifetime_event_callback(
-                    request.request_id,
-                    LifetimeEvent(LifetimeEventType.DecodingBegin),
-                    True
-                )
+                if request.turn == 0:
+                    self.engine_on_new_lifetime_event_callback(
+                        request.request_id,
+                        LifetimeEvent(LifetimeEventType.Decoding2Begin),
+                        True
+                    )
+                else:
+                    self.engine_on_new_lifetime_event_callback(
+                        request.request_id,
+                        LifetimeEvent(LifetimeEventType.DecodingBegin),
+                        True
+                    )
                 
             # Allocate blocks as needed
             self.block_manager.allocate_blocks_batched(batched_requests)
@@ -613,6 +676,10 @@ class DecodingStageLLMEngine(SingleStageLLMEngine):
                     generated_tokens, generated_tokens_ids, end_time
                 )
 
+                #print(f'len(finished_batch.requests):{len(finished_batch.requests)}')
+                #print(f'finished_batch[0].id:{finished_batch.requests[0].request_id}')                
+                #print(f'generated_tokens_ids[0]:{generated_tokens_ids[0]}')
+
                 for request, new_token, new_token_id in zip(
                     finished_batch.requests, generated_tokens, generated_tokens_ids
                 ):
@@ -621,11 +688,38 @@ class DecodingStageLLMEngine(SingleStageLLMEngine):
                         StepOutput(request, new_token, new_token_id)
                     )
                     if request.is_finished:
-                        self.engine_on_new_lifetime_event_callback(
-                            request.request_id,
-                            LifetimeEvent(LifetimeEventType.DecodingEnd)
-                        )
+                        request.turn -= 1
+                        print(f'request.turn:{request.turn}')
+                        if request.turn == 0:
+                            self.engine_on_new_lifetime_event_callback(
+                                request.request_id,
+                                LifetimeEvent(LifetimeEventType.Decoding2End)
+                            )
+                        else:
+                            self.engine_on_new_lifetime_event_callback(
+                                request.request_id,
+                                LifetimeEvent(LifetimeEventType.DecodingEnd)
+                            )
+                            #print(f'request.is_finished:{request.is_finished}')
+                            #print(f'request.is_running:{request.is_running}')
+                            #request.is_finished = False
+                            migrating2_req = MigratingRequest2(
+                            request,
+                            self.block_manager.get_block_table(request.request_id),
+                            self.parallel_config,
+                            )
+                            print(f'self.block_manager.get_block_table({request.request_id}):{self.block_manager.get_block_table(request.request_id)}')
+                            #print(f'self.scheduler.batch_queues:{self.scheduler.batch_queues}')
+                            #print(f'migrate2_req_id:{migrating2_req.req.request_id}')
+                            #print(f'self.bridge_queue2.cur_size:{self.bridge_queue2.qsize()}')
+                            self.bridge_queue2.put_nowait(migrating2_req) 
+                            self.scheduler.abort_request(request.request_id)
+                            #print(f'self.bridge_queue2.cur_size:{self.bridge_queue2.qsize()}')
+                
+                    #print(f'request.is_finished:{request.is_finished}')
+
                 finished_reqs = self.scheduler.pop_finished_requests()
+                #print(f'len(finished_reqs):{len(finished_reqs)}')                
 
                 # free blocks for finished requests
                 self.block_manager.free_blocks_batched(finished_reqs)
@@ -644,6 +738,7 @@ class DecodingStageLLMEngine(SingleStageLLMEngine):
         async def event_loop1():
             # Event loop 1. Add migrating request to the scheduler
             while True:
+                #print(f'self.bridge_queue.size:{self.bridge_queue.qsize()}')
                 migrating_req = await self.bridge_queue.get()
                 await self.scheduler.add_request(migrating_req)
                 self.bridge_queue.task_done()

@@ -37,6 +37,41 @@ Decoding Begin
 Decoding End
 """
 
+
+
+'''
+   waiting in bridge2
+
+migrating2 begin
+
+   migrating2
+
+migrating2 end
+
+   contex queuing
+
+context2 begin
+   contex2 ing
+
+cintex2  end
+
+    waiting in the bridge queue
+
+migrating begin 
+    
+    migrat ing
+
+migrating end
+
+    decoding queuing
+
+decode begin
+    
+    decoding 
+
+decoding end
+'''
+
 class LifetimeEventType(Enum):
     """
     The type of an event in a request's lifetime
@@ -48,6 +83,16 @@ class LifetimeEventType(Enum):
     MigrationEnd = "migration_end"
     DecodingBegin = "decoding_begin"
     DecodingEnd = "decoding_end"
+
+    Migration2Begin = "migration2_begin"
+    Migration2End = "migration2_end"
+
+    Context2Begin = "context2_begin"
+    Context2End = "context2_end"
+    Migration3Begin = "migration3_begin"
+    Migration3End = "migration3_end"
+    Decoding2Begin = "decoding2_begin"
+    Decoding2End = "decoding2_end"
 
     def __str__(self) -> str:
         return self.value

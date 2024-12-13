@@ -4,7 +4,7 @@ from typing import List, Callable, Tuple
 
 from distserve.config import ContextStageSchedConfig, ParallelConfig
 from distserve.logger import init_logger
-from distserve.request import Request, BatchedRequests, MigratingRequest
+from distserve.request import Request, BatchedRequests, MigratingRequest, MigratingRequest2
 from distserve.block_manager import BlockManager
 
 logger = init_logger(__name__)
@@ -88,7 +88,9 @@ class ContextStageFCFSScheduler(ContextStageScheduler):
         self,
         sched_config: ContextStageSchedConfig, 
         parallel_config: ParallelConfig,
-        block_manager: BlockManager):
+        block_manager: BlockManager,
+        engine_migrate_block_callback: Callable,
+    ):
         
         assert (
             sched_config.policy == "fcfs"
@@ -96,8 +98,14 @@ class ContextStageFCFSScheduler(ContextStageScheduler):
         self.sched_config = sched_config
         # If the current batch is full, the requests will be put into the waiting queue.
         self.waiting_queue = []
+
+        self.migrate_queue : List[MigratingRequest2] = []        
+
         self.parallel_config: List[Request] = copy.deepcopy(parallel_config)
         self.block_manager = block_manager
+
+        self.engine_migrate_block_callback = engine_migrate_block_callback
+        #print(f'self.engine_migrate_block_callback:{self.engine_migrate_block_callback}')
         # Requests that finished the context stage but are not accepted by the decoding stage.
         self.unaccepted_queue: List[Request] = []
         # The number of on-the-fly (i.e. processing) request blocks
@@ -110,6 +118,9 @@ class ContextStageFCFSScheduler(ContextStageScheduler):
         Add a request to the scheduler.
         """
         self.waiting_queue.append(request)
+
+    async def add_migrate_request(self, request:MigratingRequest2) -> None:
+        self.migrate_queue.append(request)
 
     def abort_request(self, request_id: int) -> None:
         """
@@ -155,7 +166,17 @@ class ContextStageFCFSScheduler(ContextStageScheduler):
                 self.num_on_fly_request_block 
                 <= self.block_manager.max_num_gpu_blocks
             )
-    
+        
+        #print(f'len(self.migrate_queue):{len(self.migrate_queue)}')
+
+        '''while len(self.migrate_queue) > 0:
+            request = self.migrate_queue[0]
+            if _check_add_to_cur_batch(request):
+                next_batch.add_request(request)
+                self.migrate_queue.pop(0)
+            else:
+                break'''
+ 
         while len(self.waiting_queue) > 0:
             request = self.waiting_queue[0]
             if _check_add_to_cur_batch(request):
@@ -163,7 +184,9 @@ class ContextStageFCFSScheduler(ContextStageScheduler):
                 self.waiting_queue.pop(0)
             else:
                 break
-        
+               
+        #print(f'prefill_len(next_batch):{len(next_batch)}')
+ 
         self.num_on_fly_request_block += sum([
             self._get_block_needed(req.get_input_len())
             for req in next_batch.requests
@@ -198,14 +221,36 @@ class ContextStageFCFSScheduler(ContextStageScheduler):
     
     def print_status(self):
         logger.info(f"(context) {len(self.waiting_queue)} waiting, {len(self.unaccepted_queue)} finished but unaccepted, {self.num_on_fly_request_block} blocks occupied by on-the-fly requests")
+    
+  
+    async def post_process(self) -> None:
+        def should_accept(migrating2_req: MigratingRequest2) -> bool:
+            return sum([self._get_block_needed(len(req.prompt_token_ids))
+                        for req in self.waiting_queue]) \
+                            < self.block_manager.max_num_gpu_blocks * self.sched_config.waiting_block_prop_threshold \
+                            and self._get_block_needed(len(migrating2_req.req.prompt_token_ids)) <= self.block_manager.get_num_avail_gpu_blocks()
+           
+        #print(f'len(self.migrate_queue):{len(self.migrate_queue)}')  
+        while len(self.migrate_queue) > 0:
+            migrating2_req = self.migrate_queue[0]
+            if should_accept(migrating2_req):
+                #print(f'len(self.migrate_queue):{len(self.migrate_queue)}')
+                self.migrate_queue.pop(0)
+                #print(f'len(self.migrate_queue):{len(self.migrate_queue)}')
+                print(f'migrating2_req.req.request_id:{migrating2_req.req.request_id};migrating2_req.req.turn:{migrating2_req.req.turn}')
+                await self.engine_migrate_block_callback(migrating2_req)
+                self.waiting_queue.append(migrating2_req.req)
+            else:
+                break   
 
 def get_context_stage_scheduler(
     sched_config: ContextStageSchedConfig,
     parallel_config: ParallelConfig,
-    block_manager: BlockManager
+    block_manager: BlockManager,
+    engine_migrate_block_callback: Callable,
 ) -> ContextStageScheduler:
     if sched_config.policy == "fcfs":
-        return ContextStageFCFSScheduler(sched_config, parallel_config, block_manager)
+        return ContextStageFCFSScheduler(sched_config, parallel_config, block_manager, engine_migrate_block_callback)
     else:
         raise NotImplementedError(f"Unknown context scheduler policy {sched_config.policy}")
     

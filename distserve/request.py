@@ -176,7 +176,8 @@ class Request:
         prompt: str,
         prompt_token_ids: List[int],
         sampling_params: SamplingParams = SamplingParams(),
-        priority: int = 0
+        priority: int = 0,
+        turn: int = 2
     ):
         # static states
         self.arrival_time = arrival_time
@@ -190,6 +191,8 @@ class Request:
         self.generated_token_ids = []
         self.is_finished = False
         self.is_running = False
+
+        self.turn = turn
 
         self.process_time = 0.0
         self.last_step_time = 0.0
@@ -288,7 +291,8 @@ class Request:
             f"generated_tokens={self.generated_tokens}, "
             f"generated_token_ids={self.generated_token_ids}, "
             f"is_context_stage={self.is_context_stage()}, "
-            f"is_finished={self.is_finished})"
+            f"is_finished={self.is_finished}),"
+            f"turn = {self.turn}"
         )
 
     def __str__(self) -> str:
@@ -385,6 +389,7 @@ def create_request(
     tokenizer,
     arrival_time: Optional[float] = None,
     request_id: Optional[int] = None,
+    turn: Optional[int] = None,
 ) -> Request:
     if request_id is None:
         request_id = next(request_counter)
@@ -402,6 +407,7 @@ def create_request(
         prompt,
         prompt_token_ids,
         sampling_params,
+        turn
     )
 
 
@@ -431,4 +437,32 @@ class MigratingRequest:
         self.req = req
         self.block_indexes = block_indexes
         self.context_parallel_config = context_parallel_config
-        
+      
+
+class MigratingRequest2:
+    """
+    MigratingRequest2: elements in the "bridge2" queue.
+    
+    Each MigratingRequest represents a request that:
+      - Has finished the decoding stage
+      - Has not yet acceptted by the context stage
+      - Its block is still on decoding stage's GPU memory (i.e. migration needed)
+      
+    Those requests are produced by DecodingStageLLMEngine, queued in the "bridge2"
+    queue, and finally consumed by ContextStageLLMEngine, which forms a
+    producer-consumer pattern.
+    
+    For more information about the design & implementation of disaggregation,
+    please refer to engine.py.
+    """
+
+    def __init__(
+        self,
+        req: Request,
+        block_indexes: List[int],
+        context_parallel_config: ParallelConfig,
+    ):
+        self.req = req
+        self.block_indexes = block_indexes
+        self.context_parallel_config = context_parallel_config
+  

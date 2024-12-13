@@ -104,6 +104,8 @@ class LLMEngine:
         )
         
         self.bridge_queue = asyncio.Queue()
+
+        self.bridge_queue2 = asyncio.Queue()
         
         logger.info("Initializing placement group")
         placement_groups = self._init_placement_groups()
@@ -111,6 +113,7 @@ class LLMEngine:
         logger.info("Initializing context stage LLM engine")
         self.context_engine = ContextStageLLMEngine(
             self.bridge_queue,
+            self.bridge_queue2,
             model_config,
             disagg_parallel_config.context,
             cache_config,
@@ -123,6 +126,7 @@ class LLMEngine:
         logger.info("Initializing decoding stage LLM engine")
         self.decoding_engine = DecodingStageLLMEngine(
             self.bridge_queue,
+            self.bridge_queue2,
             model_config,
             disagg_parallel_config.decoding,
             cache_config,
@@ -151,6 +155,7 @@ class LLMEngine:
         Called by self.context_engine or self.decoding_engine when a new output token
         is generated
         """
+        #print(f'self.request_outputs:{self.request_outputs}')
         self.request_outputs[request_id].put_nowait(step_output)
         
     def _on_new_lifetime_event_callback(self, request_id: int, event: LifetimeEvent, dont_add_if_dup: bool = False):
@@ -269,6 +274,7 @@ class LLMEngine:
         used in a for loop. For example, `async for output in engine.generate(...)`
         """
         assert self.engine_initialized, "Engine not initialized. Please call engine.initialize() before generating."
+        turn = 2
         req = create_request(
             prompt,
             prompt_token_ids,
@@ -277,6 +283,7 @@ class LLMEngine:
             self.tokenizer,
             arrival_time,
             request_id,
+            turn
         )
         self.request_outputs[req.request_id] = asyncio.Queue()
         self.request_lifetime_events[req.request_id] = []
@@ -296,8 +303,8 @@ class LLMEngine:
             yield step_output
             if step_output.is_finished:
                 break
-                
-        del self.request_outputs[req.request_id]
+        if req.turn==0:        
+            del self.request_outputs[req.request_id]
 
     def abort_request(self, request_id: int):
         self.context_engine.abort_request(request_id)

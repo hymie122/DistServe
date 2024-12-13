@@ -101,6 +101,7 @@ class ContextStageSchedConfig:
         max_batch_size: int,
         max_tokens_per_batch: int,
         parallel_config: ParallelConfig = None,
+        waiting_block_prop_threshold: float = 0.05
     ):
         assert policy in [
             "fcfs"
@@ -109,6 +110,7 @@ class ContextStageSchedConfig:
         self.max_batch_size = max_batch_size
         self.max_tokens_per_batch = max_tokens_per_batch
         self.parallel_config = parallel_config
+        self.waiting_block_prop_threshold = waiting_block_prop_threshold
     
 class DecodingStageSchedConfig:
     """Configuration for the decoding stage scheduler.
