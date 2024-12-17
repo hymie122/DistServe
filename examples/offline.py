@@ -22,6 +22,9 @@ prompts = [
     "one two three four"
 ]
 
+args.model = r'/jizhicfs/hymiezhao/my_codes/DistServe/models/gpt2-convert'
+args.tokenizer = r'/jizhicfs/hymiezhao/models/gpt2'
+
 # Create a sampling params object.
 sampling_params = SamplingParams(
     temperature=0.8, top_p=0.95, max_tokens=64, stop=["\n"]

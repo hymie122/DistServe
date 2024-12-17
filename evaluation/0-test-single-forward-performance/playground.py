@@ -104,8 +104,8 @@ class DistServeSUT:
         tp_world_size: int = 1
     ):
         self.model_config = ModelConfig(
-            model = "facebook/opt-6.7b",
-            tokenizer = "facebook/opt-6.7b",
+            model = r'/jizhicfs/hymiezhao/my_codes/DistServe/models/gpt2-convert',
+            tokenizer = r'/jizhicfs/hymiezhao/models/gpt2',
             dtype = "fp16",
         )
         self.cache_config = CacheConfig(

@@ -220,7 +220,7 @@ class ContextStageFCFSScheduler(ContextStageScheduler):
         )
     
     def print_status(self):
-        logger.info(f"(context) {len(self.waiting_queue)} waiting, {len(self.unaccepted_queue)} finished but unaccepted, {self.num_on_fly_request_block} blocks occupied by on-the-fly requests")
+        logger.info(f"(context) {len(self.waiting_queue)} waiting, {len(self.unaccepted_queue)} finished but unaccepted, {self.num_on_fly_request_block} blocks occupied by on-the-fly requests. self.block_manager_block_table:{self.block_manager.block_table} len(migrate_queue):{len(self.migrate_queue)}")
     
   
     async def post_process(self) -> None:

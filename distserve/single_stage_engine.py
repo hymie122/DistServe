@@ -43,7 +43,7 @@ SLEEP_WHEN_DECODING_NO_REQUEST = 0.003
 SLEEP_IN_EACH_EVENT_LOOP = 0
 
 # Print engine status every this many seconds
-PRINT_STATUS_INTERVAL = 1
+PRINT_STATUS_INTERVAL = 0.003
 
 class StepOutput:
     """The output of request in one step of inference.
@@ -56,7 +56,11 @@ class StepOutput:
         self.prompt = request.prompt
         self.new_token = new_token
         self.new_token_id = new_token_id
-        self.is_finished = request.is_finished
+        if self.request.turn == 0 and self.request.is_finished==True:
+            self.is_finished = True
+        else:
+            self.is_finished = False
+            # self.is_finished = request.is_finished
 
     def __repr__(self) -> str:
         return (

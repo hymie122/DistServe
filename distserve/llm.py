@@ -92,6 +92,10 @@ class OfflineLLM:
             self.event_loop_task = asyncio.create_task(self.engine.start_all_event_loops())
             result = await asyncio.gather(*request_tasks)
             self.event_loop_task.cancel()
+            for item in self.engine.request_lifetime_events[0]:
+                print(f'request_0_lifetimeevents:{item.event_type}')
+            for item in self.engine.request_lifetime_events[1]:
+                print(f'request_0_lifetimeevents:{item.event_type}')
             return result
 
         return asyncio.run(generate_main())

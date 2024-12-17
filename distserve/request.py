@@ -324,6 +324,9 @@ class BatchedRequests:
             request.request_id not in self.get_request_ids()
         ), f"request {request.request_id} already exists"
         self.requests.append(request)
+    
+    def pop_request(self, index:int):
+        self.requests.pop(index)
 
     def pop_finished_requests(self) -> List[Request]:
         finished_requests, unfinished_requests = [], []

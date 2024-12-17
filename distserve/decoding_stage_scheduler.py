@@ -168,10 +168,11 @@ class DecodingStageFCFSScheduler(DecodingStageScheduler):
                     # so it is not safe to delete it from current batch directly.
                     # Mark it as finished will release the resources it holds finally.
                     request.is_finished = True
+                    print(f'request:{request} ended')
                     return
                 elif request.request_id == request_id and request.turn==1:
                     print(f'request:{request} has been removed')
-                    self.batch_queues[i].pop(_)
+                    self.batch_queues[i].pop_request(_)
                     return 
 
         # scan the waiting queue
@@ -251,7 +252,7 @@ class DecodingStageFCFSScheduler(DecodingStageScheduler):
         )
     
     def print_status(self) -> None:
-        logger.info(f"(decoding) {len(self.unaccepted_queue)} unaccepted, {len(self.waiting_queue)} waiting, {self.get_processing_num_requests()} processing")
+        logger.info(f"(decoding) {len(self.unaccepted_queue)} unaccepted, {len(self.waiting_queue)} waiting, {self.get_processing_num_requests()} processing. self.block_manager_block_table:{self.block_manager.block_table}")
 
     async def post_process(self) -> None:
         def should_accept(migrating_req: MigratingRequest) -> bool:
