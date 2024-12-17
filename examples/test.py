@@ -88,16 +88,18 @@ async def detransfer(req:MigratingRequest2):
     await context_engine._migrate2_blocks(req)
 
 async def chat():
+    index = 0
     while True:
         cur_input = input("input prompt:")
         if cur_input == "exit":
             break
         elif cur_input == "create":
-            prompt = request.create_request(prompt = "hahaha", prompt_token_ids=None, sampling_params=sampling_params, request_counter=engine.request_counter, tokenizer = engine.tokenizer, arrival_time=None, request_id = 0, turn = 2)
+            prompt = request.create_request(prompt = "hahaha", prompt_token_ids=None, sampling_params=sampling_params, request_counter=engine.request_counter, tokenizer = engine.tokenizer, arrival_time=None, request_id = index, turn = 2)
             print(f'prompt:{prompt}')
             engine.request_outputs[prompt.request_id] = asyncio.Queue()
             engine.request_lifetime_events[prompt.request_id] = []
             engine._on_new_lifetime_event_callback(prompt.request_id, LifetimeEvent(LifetimeEventType.Issued))
+            index+=1
         elif cur_input == "migrate":
             context_blockmanager.allocate_blocks(prompt)
             print_status()
