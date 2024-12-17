@@ -139,9 +139,11 @@ class BlockManager:
             )
             self.request_location[request.request_id] = BlockLocation.GPU
         else:
+            # print(f'request_id{request.request_id} need more blocks')
             assert self.request_location[request.request_id] == BlockLocation.GPU
             num_blocks_cur = len(self.block_table[request.request_id])
             if num_blocks_cur < num_blocks_needed:
+                print(f'request_id{request.request_id} need more blocks')
                 self.block_table[request.request_id] += self._get_free_blocks(
                     num_blocks_needed - num_blocks_cur, BlockLocation.GPU
                 )

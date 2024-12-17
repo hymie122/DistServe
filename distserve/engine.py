@@ -303,7 +303,8 @@ class LLMEngine:
             yield step_output
             if step_output.is_finished:
                 break
-        if req.turn==0:        
+        if req.turn==0:
+            print(f'finished req.request_id:{req.request_id}')        
             del self.request_outputs[req.request_id]
 
     def abort_request(self, request_id: int):

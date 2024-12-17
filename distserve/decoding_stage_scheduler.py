@@ -157,14 +157,22 @@ class DecodingStageFCFSScheduler(DecodingStageScheduler):
 
     def abort_request(self, request_id: int) -> None:
         # scan the current batch
-        for queue in self.batch_queues:
-            for _, request in enumerate(queue.requests):
+        #for queue in self.batch_queues:
+        for i in range(len(self.batch_queues)):
+            # print(f'type(queue):{type(self.batch_queues[i])}')
+            # print(f'queue:{self.batch_queues[i]}')
+            for _, request in enumerate(self.batch_queues[i].requests):
+                # print(f'_:{_};request:{request}')
                 if request.request_id == request_id and request.turn==0:
                     # This request may be under processed by the model currently,
                     # so it is not safe to delete it from current batch directly.
                     # Mark it as finished will release the resources it holds finally.
                     request.is_finished = True
                     return
+                elif request.request_id == request_id and request.turn==1:
+                    print(f'request:{request} has been removed')
+                    self.batch_queues[i].pop(_)
+                    return 
 
         # scan the waiting queue
         for i, request in enumerate(self.waiting_queue):

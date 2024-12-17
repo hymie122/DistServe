@@ -91,7 +91,7 @@ class OfflineLLM:
                 request_tasks.append(asyncio.create_task(deal_with_request_coroutine(i)))
             self.event_loop_task = asyncio.create_task(self.engine.start_all_event_loops())
             result = await asyncio.gather(*request_tasks)
-            #self.event_loop_task.cancel()
+            self.event_loop_task.cancel()
             return result
 
         return asyncio.run(generate_main())

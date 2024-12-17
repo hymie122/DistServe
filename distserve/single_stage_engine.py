@@ -306,15 +306,18 @@ class ContextStageLLMEngine(SingleStageLLMEngine):
         generated_token_ids_bkup = migrating2_req.req.generated_token_ids
         migrating2_req.req.generated_tokens = []
         migrating2_req.req.generated_token_ids = []
+        # print(f'self.block_manager{self.block_manager.stage}.block_table:{self.block_manager.block_table}')
         #if migrating2_req.req.turn == 2:
         self.block_manager.allocate_blocks(migrating2_req.req)
+        # print(f'self.block_manager{self.block_manager.stage}.block_table:{self.block_manager.block_table}')
         migrating2_req.req.generated_tokens = generated_token_bkup
         migrating2_req.req.generated_token_ids = generated_token_ids_bkup
 
         target_block_indexes = self.block_manager.get_block_table(migrating2_req.req.request_id)
-        print(f'migrating2_req.req.request_id:{migrating2_req.req.request_id}')
-        print(f'len(target_block_indexes):{len(target_block_indexes)}')
-        print(f'len(migrating2_req.block_indexes):{len(migrating2_req.block_indexes)}')
+        # print(f'target_block_indexes:{target_block_indexes}')
+        # print(f'migrating2_req.req.request_id:{migrating2_req.req.request_id}')
+        # print(f'len(target_block_indexes):{len(target_block_indexes)}')
+        # print(f'len(migrating2_req.block_indexes):{len(migrating2_req.block_indexes)}')
         assert len(target_block_indexes) == len(migrating2_req.block_indexes)
 
         self.engine_on_new_lifetime_event_callback(
@@ -344,7 +347,8 @@ class ContextStageLLMEngine(SingleStageLLMEngine):
         Note2. Pipeline parallel is not tested yet
         """
         # pick next batch from scheduler
-        batched_requests = self.scheduler.get_next_batch_and_pop()
+        #batched_requests = self.scheduler.get_next_batch_and_pop()
+        # print(f'batched_requests:{batched_requests}')
         if len(batched_requests) == 0:
             # Two cases may cause len(batched_requests) == 0:
             # 1. No request in the waiting queue
@@ -568,8 +572,8 @@ class DecodingStageLLMEngine(SingleStageLLMEngine):
         migrating_req.req.generated_token_ids = generated_token_ids_bkup
         
         target_block_indexes = self.block_manager.get_block_table(migrating_req.req.request_id)
-        print(f'len(target_block_indexes):{len(target_block_indexes)}')
-        print(f'len(migrating_req.block_indexes):{len(migrating_req.block_indexes)}')
+        #print(f'len(target_block_indexes):{len(target_block_indexes)}')
+        #print(f'len(migrating_req.block_indexes):{len(migrating_req.block_indexes)}')
         assert len(target_block_indexes) == len(migrating_req.block_indexes)
         
         # Transfer the blocks
@@ -606,7 +610,8 @@ class DecodingStageLLMEngine(SingleStageLLMEngine):
         # this may trigger swap_in if some requests have been swapped out to CPU
         # this may also trigger swap_out if GPU blocks are not enough
         batched_requests = self.scheduler.get_next_batch()
-
+        #print(f'batched_requests:{batched_requests}')
+        # print(f'self.block_manager{self.block_manager.stage}.block_table:{self.block_manager.block_table}')
         if len(batched_requests) == 0:
             self.batches_in_pipeline.append(batched_requests)
             self.batches_ret_futures.append(None)
@@ -689,7 +694,7 @@ class DecodingStageLLMEngine(SingleStageLLMEngine):
                     )
                     if request.is_finished:
                         request.turn -= 1
-                        print(f'request.turn:{request.turn}')
+                        # print(f'request:{request.__repr__()}')
                         if request.turn == 0:
                             self.engine_on_new_lifetime_event_callback(
                                 request.request_id,
@@ -708,7 +713,8 @@ class DecodingStageLLMEngine(SingleStageLLMEngine):
                             self.block_manager.get_block_table(request.request_id),
                             self.parallel_config,
                             )
-                            print(f'self.block_manager.get_block_table({request.request_id}):{self.block_manager.get_block_table(request.request_id)}')
+                            # print(f'migrate2_req_block_indexes:{migrating2_req.block_indexes}')
+                            # print(f'self.block_manager{self.block_manager.stage}.get_block_table({request.request_id}):{self.block_manager.get_block_table(request.request_id)}')
                             #print(f'self.scheduler.batch_queues:{self.scheduler.batch_queues}')
                             #print(f'migrate2_req_id:{migrating2_req.req.request_id}')
                             #print(f'self.bridge_queue2.cur_size:{self.bridge_queue2.qsize()}')
