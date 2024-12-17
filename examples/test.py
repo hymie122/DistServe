@@ -79,9 +79,9 @@ decoding_engine = llm.engine.decoding_engine
 decoding_blockmanager = decoding_engine.block_manager
 def print_status():
     print(f'context_blockmanager_blocktable:{context_blockmanager.block_table}')
-    print(f'context workers:{context_engine.workers}')
+    print(f'context workers[0][0] tpid:{context_engine.workers[0][0].tensor_parallel_id};context workers[0][0] ppid:{context_engine.workers[0][0].pipeline_parallel_id}')
     print(f'decoding_blockmanager_blocktable:{decoding_blockmanager.block_table}')
-    print(f'decoding workers:{decoding_engine.workers}')
+    print(f'decoding workers[0][0] tpid:{decoding_engine.workers[0][0].tensor_parallel_id};decoding worker[0][0] ppid:{decoding_engine.workers[0][0].pipeline_parallel_id}')
 
 async def transfer(req:MigratingRequest):
     await decoding_engine._migrate_blocks(req)
