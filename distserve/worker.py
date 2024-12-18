@@ -246,6 +246,27 @@ class ParaWorker:
                 )
                 
         torch.cuda.synchronize()
+
+    def register_kvcache_mem_handles2(
+        self,
+        decoding_parallel_config: ParallelConfig,
+        kvcache_ipc_mem_handles: List[List[Tuple[cudaMemoryIpcHandle, cudaMemoryIpcHandle]]]
+    ):
+        for pp_rank, stage_workers in enumerate(kvcache_ipc_mem_handles):
+            for tp_rank, mem_handle in enumerate(stage_workers):
+                tmp_parallel_config = copy.deepcopy(decoding_parallel_config)
+                tmp_parallel_config.pipeline_parallel_rank = pp_rank
+                tmp_parallel_config.tensor_parallel_rank = tp_rank
+                torch.ops.block_migration_ops.register_ipc_mem_handle2(
+                    kvcache_ipc_mem_handles[pp_rank][tp_rank][0],
+                    kvcache_ipc_mem_handles[pp_rank][tp_rank][1],
+                    self.model_config.get_num_layers(),
+                    self.model_config.get_num_heads(),
+                    tmp_parallel_config.to_list(),
+                    self.parallel_config.to_list()
+                )
+                
+        torch.cuda.synchronize()
                 
     def migrate_blocks(
         self,
