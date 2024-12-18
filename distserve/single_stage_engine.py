@@ -298,6 +298,22 @@ class ContextStageLLMEngine(SingleStageLLMEngine):
         self.bridge_queue = bridge_queue
 
         self.bridge_queue2 = bridge_queue2
+
+    async def register_kvcache_mem_handles(
+        self,
+        decoding_parallel_config: ParallelConfig,
+        kv_cache_mem_handles: List[List[Tuple[cudaMemoryIpcHandle, cudaMemoryIpcHandle]]]
+    ):
+        """
+        Distribute kv cache memory IPC handles to workers and workers will
+        register those handles.
+        """
+        self.kv_cache_mem_handles = kv_cache_mem_handles
+        await asyncio.wait(self._remote_call_all_workers_async(
+            "register_kvcache_mem_handles",
+            decoding_parallel_config,
+            kv_cache_mem_handles
+        ))
     
     def add_request(self, request: Request):
         self.scheduler.add_request(request)

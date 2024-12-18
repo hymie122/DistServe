@@ -278,7 +278,7 @@ class ParaWorker:
         print(f'decoding_block_indexes:{decoding_block_indexes};decoding_parallel_config:{decoding_parallel_config};context_block_indexes:{context_block_indexes}')
         print(f'stage:{self.stage}')
         print(f'workerid:{self.worker_id}')
-        torch.ops.block_migration_ops.migrate_blocks(
+        torch.ops.block_migration_ops.migrate_blocks2(
             decoding_parallel_config.pipeline_parallel_size,
             decoding_parallel_config.tensor_parallel_size,
             decoding_block_indexes,
