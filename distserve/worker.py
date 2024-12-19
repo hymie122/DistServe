@@ -106,6 +106,7 @@ class ParaWorker:
         """
         # kv shape is [num_gpu_blocks, num_layers, num_local_heads, block_size, head_dim]
         # profile the GPU to get num_gpu_blocks
+        print(f'stage:{self.stage} init kvcache')
         kv_cache_shape = (
             num_gpu_blocks,
             self.model_config.get_num_layers(self.parallel_config),
@@ -231,6 +232,7 @@ class ParaWorker:
         context_parallel_config: ParallelConfig,
         kvcache_ipc_mem_handles: List[List[Tuple[cudaMemoryIpcHandle, cudaMemoryIpcHandle]]]
     ):
+        print(f'stage:{self.stage};gpu_id:{self.gpu_id}')
         for pp_rank, stage_workers in enumerate(kvcache_ipc_mem_handles):
             for tp_rank, mem_handle in enumerate(stage_workers):
                 tmp_parallel_config = copy.deepcopy(context_parallel_config)
@@ -252,6 +254,9 @@ class ParaWorker:
         decoding_parallel_config: ParallelConfig,
         kvcache_ipc_mem_handles: List[List[Tuple[cudaMemoryIpcHandle, cudaMemoryIpcHandle]]]
     ):
+        print(f'stage:{self.stage};gpu_id:{self.gpu_id}')
+        print(f'decoding_parallel_config:{decoding_parallel_config.to_list()}')
+        print(f'kvcache_ipc_mem_handles:{kvcache_ipc_mem_handles}')
         for pp_rank, stage_workers in enumerate(kvcache_ipc_mem_handles):
             for tp_rank, mem_handle in enumerate(stage_workers):
                 tmp_parallel_config = copy.deepcopy(decoding_parallel_config)

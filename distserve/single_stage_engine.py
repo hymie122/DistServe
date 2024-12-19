@@ -225,6 +225,11 @@ class SingleStageLLMEngine(ABC):
                 kv_cache_mem_handles.append(kv_cache_mem_handles_1d.pop(0))
             self.kv_cache_mem_handles.append(kv_cache_mem_handles)
         
+        if self.stage==Stage.CONTEXT:
+            print(f'stage:{self.stage};self.kv_cache_mem_handles:{self.kv_cache_mem_handles}')
+        if self.stage==Stage.DECODING:
+            print(f'stage:{self.stage};self.kv_cache_mem_handles:{self.kv_cache_mem_handles}')
+        
         return num_gpu_blocks, num_cpu_blocks
 
     def _remote_call_all_workers_async(self, func_name: str, *args):

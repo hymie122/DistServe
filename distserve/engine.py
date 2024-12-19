@@ -218,11 +218,14 @@ class LLMEngine:
             self.context_engine.parallel_config,
             self.context_engine.kv_cache_mem_handles
         )
-        await self.context_engine.register_kvcache_mem_handles2(
-            self.decoding_engine.parallel_config,
-            self.decoding_engine.kv_cache_mem_handles
-        )
-        
+        # print(f'self.context_engine.kv_cache_mem_handles:{self.context_engine.kv_cache_mem_handles}')
+
+        # await self.context_engine.register_kvcache_mem_handles2(
+        #     self.decoding_engine.parallel_config,
+        #     self.decoding_engine.kv_cache_mem_handles
+        # )
+        # print(f'self.decoding_engine.kv_cache_mem_handles:{self.decoding_engine.kv_cache_mem_handles}')
+
         self.engine_initialized = True
         
     def _remote_call_all_workers(
