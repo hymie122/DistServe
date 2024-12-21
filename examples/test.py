@@ -14,6 +14,9 @@ from distserve.config import (
 )
 from distserve.lifetime import LifetimeEvent, LifetimeEventType
 
+import torch
+import torch.autograd.profiler as profiler
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--model', type=str, help='The model to use', default='meta-llama/Llama-2-7b-hf')
@@ -86,7 +89,13 @@ def print_status():
     # print(f'decoding workers[0][0] tpid:{decoding_engine.workers[0][0].tensor_parallel_id};decoding worker[0][0] ppid:{decoding_engine.workers[0][0].pipeline_parallel_id}')
 
 async def transfer(req:MigratingRequest):
-    await decoding_engine._migrate_blocks(req)
+    with profiler.profile(use_cuda=True) as prof:
+    # 运行你的 CUDA 代码
+        await decoding_engine._migrate_blocks(req)
+        
+    print(prof.key_averages().table(sort_by="cuda_time_total"))
+
+    # await decoding_engine._migrate_blocks(req)
 
 async def detransfer(req:MigratingRequest2):
     await context_engine._migrate2_blocks(req)
